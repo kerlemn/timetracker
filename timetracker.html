@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Time Tracker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg2: #0F0F13;
+    --bg: rgba(255,255,255,0.04);
+    --border: rgba(0,0,0,0.07);
+    --text: #E8E8F0;
+    --muted: #888;
+    --dim: #555;
+    --dimmer: #444;
+    --slot-w: 64px;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', 'Courier New', monospace;
+    overflow: hidden;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    max-width: 480px;
+    margin: 0 auto;
+    height: 100dvh;
+  }
+
+  /* ── Header ── */
+  #header {
+    padding: 16px 20px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+  #header .eyebrow {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  #header .time-display {
+    font-size: 24px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: #111;
+    line-height: 1.1;
+  }
+  #header .slot-info {
+    font-size: 12px;
+    color: #666;
+    margin-left: 10px;
+    font-weight: 400;
+  }
+  #reset-btn {
+    background: none;
+    border: 1px solid rgba(0,0,0,0.15);
+    color: #333;
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    font-family: inherit;
+  }
+  #reset-btn:active { opacity: 0.6; }
+
+  /* ── Rail wrapper ── */
+  #rail-wrapper {
+    position: relative;
+    padding: 12px 0 8px;
+    flex-shrink: 0;
+  }
+  #center-indicator {
+    position: absolute;
+    top: 0; bottom: 0;
+    left: 50%;
+    width: var(--slot-w);
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.04);
+    border-left: 1px solid rgba(0,0,0,0.12);
+    border-right: 1px solid rgba(0,0,0,0.12);
+    pointer-events: none;
+    z-index: 1;
+    border-radius: 6px;
+  }
+  .fade-edge {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 56px;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .fade-left  { left: 0;  background: linear-gradient(to right, var(--bg), transparent); }
+  .fade-right { right: 0; background: linear-gradient(to left,  var(--bg), transparent); }
+
+  #rail {
+    display: flex;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    gap: 2px;
+    padding-left: calc(50% - 32px);
+    padding-right: calc(50% - 32px);
+    scroll-snap-type: x mandatory;
+    position: relative;
+    z-index: 0;
+    -webkit-overflow-scrolling: touch;
+  }
+  #rail::-webkit-scrollbar { display: none; }
+
+  .slot {
+    flex-shrink: 0;
+    width: 62px;
+    scroll-snap-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 0 6px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .slot-bar {
+    width: 44px;
+    height: 28px;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.06);
+    border: 2px solid transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 600;
+    color: #444;
+    transition: all 0.15s;
+    font-family: inherit;
+  }
+  .slot.active .slot-bar {
+    height: 36px;
+    border-color: rgba(0,0,0,0.6);
+  }
+  .slot-time {
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 0.04em;
+    transition: all 0.15s;
+  }
+  .slot.active .slot-time {
+    font-size: 10px;
+    color: #111;
+    font-weight: 500;
+  }
+
+  /* ── Progress bar ── */
+  #progress-wrap {
+    margin: 10px 20px 14px;
+    height: 3px;
+    background: rgba(0,0,0,0.06);
+    border-radius: 2px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  #progress-bar {
+    height: 100%;
+    background: rgba(0,0,0,0.25);
+    border-radius: 2px;
+    transition: width 0.2s;
+    width: 2.08%;
+  }
+
+  /* ── Pad ── */
+  #pad-section {
+    flex: 1;
+    padding: 0 16px 12px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  #pad-hint {
+    font-size: 10px;
+    color: var(--dimmer);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  #pad {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    flex: 1;
+  }
+  .cat-btn {
+    border-radius: 10px;
+    border-width: 1px;
+    border-style: solid;
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'DM Mono', 'Courier New', monospace;
+    letter-spacing: -0.02em;
+    -webkit-tap-highlight-color: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.08s, background 0.08s;
+    min-height: 52px;
+  }
+  .cat-btn:active {
+    transform: scale(0.91);
+  }
+
+  /* ── Export ── */
+  #export-section {
+    padding: 12px 16px 20px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #copy-btn {
+    width: 100%;
+    padding: 15px;
+    border-radius: 12px;
+    border: none;
+    background: rgba(0,0,0,0.08);
+    color: #333;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.06em;
+    font-family: 'DM Mono', 'Courier New', monospace;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: background 0.2s, color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #copy-btn.copied {
+    background: rgba(46,204,113,0.2);
+    color: #2ECC71;
+  }
+  #copy-btn:active { opacity: 0.8; }
+  #export-note {
+    margin-top: 7px;
+    font-size: 10px;
+    color: var(--dimmer);
+    text-align: center;
+    letter-spacing: 0.06em;
+  }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div id="header">
+  <div>
+    <div class="eyebrow">time tracker</div>
+    <div>
+      <span class="time-display" id="time-display">00:00</span>
+      <span class="slot-info" id="slot-info">slot 1/48</span>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <button id="now-btn" title="Jump to current time" style="background:none;border:1px solid rgba(0,0,0,0.15);color:#333;border-radius:8px;padding:6px 12px;font-size:12px;cursor:pointer;letter-spacing:0.06em;font-family:inherit;">now</button>
+    <button id="reset-btn">reset</button>
+  </div>
+</div>
+
+<!-- Rail -->
+<div id="rail-wrapper">
+  <div id="center-indicator"></div>
+  <div class="fade-edge fade-left"></div>
+  <div class="fade-edge fade-right"></div>
+  <div id="rail"></div>
+</div>
+
+<!-- Progress -->
+<div id="progress-wrap">
+  <div id="progress-bar"></div>
+</div>
+
+<!-- Pad -->
+<div id="pad-section">
+  <div id="pad"></div>
+</div>
+
+<!-- Export -->
+<div id="export-section">
+  <button id="copy-btn">
+    <span id="copy-icon">⎘</span>
+    <span id="copy-label">copy row for spreadsheet</span>
+  </button>
+  </div>
+
+<script>
+const SLOTS = 48;
+const SLOT_W = 64;
+const DEFAULT_VAL = 10;
+
+const COLORS = {
+  1:"#00202e", 2:"#003f5c", 3:"#2c4875", 4:"#8a508f", 5:"#bc5090",
+  6:"#ff6361", 7:"#ff8531", 8:"#ffa600", 9:"#ffd380", 10:"#0a2d2e",
+  11:"#1c4e4f",12:"#8f53fe",13:"#7a71f8",14:"#658ef2",15:"#50aceb",
+  16:"#3bcae5",17:"#3eb59d",18:"#8bd0c2",19:"#c5e8e1",20:"#f6a9c7",
+};
+
+function slotLabel(s) {
+  const h = Math.floor(s / 2);
+  const m = s % 2 === 0 ? "00" : "30";
+  return String(h).padStart(2,"0") + ":" + m;
+}
+
+// ── Persistence ──
+const STORAGE_KEY = "timetracker_v1";
+function saveState() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ slots, cursor })); } catch(e) {}
+}
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    if (Array.isArray(p.slots) && p.slots.length === SLOTS) return p;
+  } catch(e) {}
+  return null;
+}
+
+// State
+const _saved = loadState();
+let slots = _saved ? _saved.slots : Array(SLOTS).fill(DEFAULT_VAL);
+let cursor = _saved ? _saved.cursor : (function() {
+  const now = new Date();
+  return Math.min(now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0), SLOTS - 1);
+})();
+
+// ── Build rail ──
+const rail = document.getElementById("rail");
+
+function buildRail() {
+  rail.innerHTML = "";
+  for (let i = 0; i < SLOTS; i++) {
+    const div = document.createElement("div");
+    div.className = "slot" + (i === cursor ? " active" : "");
+    div.dataset.index = i;
+
+    const bar = document.createElement("div");
+    bar.className = "slot-bar";
+    applyBarStyle(bar, slots[i]);
+
+    const lbl = document.createElement("div");
+    lbl.className = "slot-time";
+    lbl.textContent = slotLabel(i);
+
+    div.appendChild(bar);
+    div.appendChild(lbl);
+    div.addEventListener("click", () => setCursor(i));
+    rail.appendChild(div);
+  }
+}
+
+function applyBarStyle(bar, val) {
+  const isEmpty = val === DEFAULT_VAL;
+  bar.style.background = isEmpty ? "rgba(0,0,0,0.06)" : COLORS[val] || "#888";
+  bar.style.color = isEmpty ? "#444" : "rgba(0,0,0,0.9)";
+  bar.textContent = isEmpty ? "·" : val;
+}
+
+function updateSlotEl(i) {
+  const slotEls = rail.querySelectorAll(".slot");
+  const el = slotEls[i];
+  if (!el) return;
+  const bar = el.querySelector(".slot-bar");
+  applyBarStyle(bar, slots[i]);
+  updateOpacities();
+}
+
+function updateOpacities() {
+  const slotEls = rail.querySelectorAll(".slot");
+  slotEls.forEach((el, i) => {
+    const dist = Math.abs(i - cursor);
+    el.classList.toggle("active", i === cursor);
+    const bar = el.querySelector(".slot-bar");
+    bar.style.height = i === cursor ? "36px" : "28px";
+    bar.style.borderColor = i === cursor ? "rgba(0,0,0,0.6)" : "transparent";
+    if (dist === 0) el.style.opacity = "1";
+    else if (dist < 4) el.style.opacity = "0.7";
+    else el.style.opacity = "0.35";
+  });
+}
+
+// ── Scrolling ──
+let isAutoScrolling = false;
+let scrollTimeout = null;
+
+function scrollToCursor() {
+  isAutoScrolling = true;
+  const containerW = rail.clientWidth;
+  const target = (cursor) * SLOT_W;
+  rail.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
+  clearTimeout(scrollTimeout);
+  scrollTimeout = setTimeout(() => { isAutoScrolling = false; }, 600);
+}
+
+rail.addEventListener("scroll", () => {
+  if (isAutoScrolling) return;
+  const center = rail.scrollLeft + rail.clientWidth / 2;
+  const snapped = Math.round((center - SLOT_W / 2) / SLOT_W);
+  const clamped = Math.max(0, Math.min(SLOTS - 1, snapped));
+  if (clamped !== cursor) {
+    cursor = clamped;
+    updateOpacities();
+    updateHeader();
+  }
+}, { passive: true });
+
+
+// ── Cursor + header ──
+function setCursor(i) {
+  cursor = Math.max(0, Math.min(SLOTS - 1, i));
+  updateOpacities();
+  updateHeader();
+  scrollToCursor();
+}
+
+function updateHeader() {
+  document.getElementById("time-display").textContent = slotLabel(cursor);
+  document.getElementById("slot-info").textContent = "slot " + (cursor + 1) + "/48";
+  document.getElementById("progress-bar").style.width = ((cursor + 1) / SLOTS * 100) + "%";
+}
+
+// ── Category pad ──
+function buildPad() {
+  const pad = document.getElementById("pad");
+  pad.innerHTML = "";
+  for (let v = 1; v <= 20; v++) {
+    const btn = document.createElement("button");
+    btn.className = "cat-btn";
+    btn.textContent = v;
+    const c = COLORS[v];
+    btn.style.background = c + "18";
+    btn.style.borderColor = c + "40";
+    btn.style.color = c;
+    btn.addEventListener("click", () => pressCategory(v));
+    pad.appendChild(btn);
+  }
+}
+
+function pressCategory(val) {
+  slots[cursor] = val;
+  updateSlotEl(cursor);
+  setCursor(cursor + 1);
+  saveState();
+}
+
+// ── Reset ──
+document.getElementById("reset-btn").addEventListener("click", () => {
+  slots = Array(SLOTS).fill(DEFAULT_VAL);
+  cursor = 0;
+  buildRail();
+  updateHeader();
+  scrollToCursor();
+  saveState();
+});
+
+// ── Copy ──
+document.getElementById("copy-btn").addEventListener("click", () => {
+  const text = slots.join("\t");
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById("copy-btn");
+    btn.classList.add("copied");
+    document.getElementById("copy-icon").textContent = "✓";
+    document.getElementById("copy-label").textContent = "copied to clipboard";
+    setTimeout(() => {
+      btn.classList.remove("copied");
+      document.getElementById("copy-icon").textContent = "⎘";
+      document.getElementById("copy-label").textContent = "copy row for spreadsheet";
+    }, 2000);
+  });
+});
+
+// ── Now ──
+document.getElementById("now-btn").addEventListener("click", () => {
+  const now = new Date();
+  const slot = Math.min(now.getHours() * 2 + (now.getMinutes() >= 30 ? 1 : 0), SLOTS - 1);
+  setCursor(slot);
+});
+
+// ── Init ──
+buildRail();
+buildPad();
+updateHeader();
+// Instant scroll on load (no animation)
+requestAnimationFrame(() => {
+  const containerW = rail.clientWidth;
+  const target = cursor * SLOT_W;
+  rail.scrollLeft = Math.max(0, target);
+});
+</script>
+</body>
+</html>
