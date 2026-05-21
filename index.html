@@ -409,8 +409,7 @@ let scrollTimeout = null;
 
 function scrollToCursor() {
   isAutoScrolling = true;
-  const containerW = rail.clientWidth;
-  const target = (cursor) * SLOT_W;
+  const target = cursor * SLOT_W;
   rail.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
   clearTimeout(scrollTimeout);
   scrollTimeout = setTimeout(() => { isAutoScrolling = false; }, 600);
@@ -418,13 +417,13 @@ function scrollToCursor() {
 
 rail.addEventListener("scroll", () => {
   if (isAutoScrolling) return;
-  const center = rail.scrollLeft + rail.clientWidth / 2;
-  const snapped = Math.round((center - SLOT_W / 2) / SLOT_W);
+  const snapped = Math.round(rail.scrollLeft / SLOT_W);
   const clamped = Math.max(0, Math.min(SLOTS - 1, snapped));
   if (clamped !== cursor) {
     cursor = clamped;
     updateOpacities();
     updateHeader();
+    saveState();
   }
 }, { passive: true });
 
@@ -506,9 +505,7 @@ buildPad();
 updateHeader();
 // Instant scroll on load (no animation)
 requestAnimationFrame(() => {
-  const containerW = rail.clientWidth;
-  const target = cursor * SLOT_W;
-  rail.scrollLeft = Math.max(0, target);
+  rail.scrollLeft = Math.max(0, cursor * SLOT_W);
 });
 </script>
 </body>
